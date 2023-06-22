@@ -1,7 +1,7 @@
 import numpy as np
 import sensor_msgs.msg
 
-from jeguzzi_rosbag_utils.export_hdf5 import main, reader
+from rosbag_utils.export_hdf5 import main, reader
 
 
 # some readers are already defined ...

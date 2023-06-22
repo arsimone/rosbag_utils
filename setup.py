@@ -1,6 +1,6 @@
 from setuptools import setup
 
-package_name = 'jeguzzi_rosbag_utils'
+package_name = 'rosbag_utils'
 
 setup(
     name=package_name,
@@ -20,10 +20,11 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'read = jeguzzi_rosbag_utils.reader:main',
-            'video = jeguzzi_rosbag_utils.h264_video:main',
-            'hdf5 = jeguzzi_rosbag_utils.export_h5df:main',
-            'hdf5_sync = jeguzzi_rosbag_utils.export_h5df_sync:main',
+            'read = rosbag_utils.reader:main',
+            'video = rosbag_utils.h264_video:main',
+            'hdf5 = rosbag_utils.export_h5df:main',
+            'hdf5_sync = rosbag_utils.export_h5df_sync:main',
+            'csv_kinect = rosbag_utils.export_csv_kinect:main',
         ],
     },
 )
