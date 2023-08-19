@@ -48,6 +48,22 @@ def multiple_users_landmarks(msg: users_landmarks_msgs.msg.MultipleUsersLandmark
     
     return multiple_users_landmarks
 
+@reader(users_landmarks_msgs.msg.InteractionUsersData)
+def interaction_users_data(msg: users_landmarks_msgs.msg.InteractionUsersData) -> Dict:
+    interaction_users_data = {}
+    interaction_users_data["multiple_users_landmarks_list"] = multiple_users_landmarks(msg.users_data)
+    interaction_users_data["looking_at_camera_list"] = [label for label in msg.looking_at_camera]
+    interaction_users_data["sequence_id"] = msg.sequence_id
+    return interaction_users_data
+
+@reader(users_landmarks_msgs.msg.InteractionSequenceLabel)
+def interaction_sequence_label(msg: users_landmarks_msgs.msg.InteractionSequenceLabel) -> Dict:
+    interaction_sequence_label = {}
+    interaction_sequence_label["timestamp"] = msg.header.stamp.sec + msg.header.stamp.nanosec/1000000000
+    interaction_sequence_label["interacted"] = msg.interacted
+    interaction_sequence_label["sequence_id"] = msg.sequence_id
+    return interaction_sequence_label
+
 def get_pose_data(pose):
     pose_data = {}
     pose_data["position"] = np.asarray([pose.position.x,
@@ -86,23 +102,21 @@ def import_topic(bag: BagReader, topic: str,
     else:
         return None
 
-
 def export_bag(bag_file: str,
-               output_file: str = None,
-               write_to_file: bool = False,
                topics: Collection[str] = [],
                exclude: Collection[str] = [],
                use_header_stamps: bool = True,
                labels_to_add: list = None) -> None:
     bag = BagReader(bag_file)
-    bag_name = os.path.basename(os.path.normpath(bag_file))
             
     if not topics:
         topics = bag.type_map.keys()
     if exclude:
         topics = set(topics) - set(exclude)
-        
-    dictionary_list = []
+    
+    print(f'Will try to import topics: {topics}')
+    
+    topics_dict = {}
             
     for topic in topics:
         bag.logger.info(f'Will try to import {topic}')
@@ -116,6 +130,7 @@ def export_bag(bag_file: str,
         bag.logger.info(f'imported {topic}')
         if msg_type == users_landmarks_msgs.msg.MultipleUsersLandmarks:
             print(f"Number of messages: {len(topic_messages_list)}")
+            topic_list = []
             
             for users in topic_messages_list:
                 for user in users:
@@ -155,36 +170,80 @@ def export_bag(bag_file: str,
                         for label in labels_to_add:
                             user_dict[label["label_name"]] = label["label_value"]
                     
-                    dictionary_list.append(user_dict)
-    
-    if write_to_file:     
-        output_file_path = os.path.splitext(bag_name)[0] + '.csv'           
-        if output_file is None:
-            output_file_path = os.path.join(os.path.dirname(bag_file), output_file)
-        else:
-            if not os.path.isdir(os.path.dirname(output_file)):
-                os.mkdir(os.path.dirname(output_file))
-            output_file_path = output_file            
+                    topic_list.append(user_dict)
+            topics_dict[topic] = topic_list
             
-        print(f'Exporting: \n{bag_file} \nto \n{output_file}')
+        elif msg_type == users_landmarks_msgs.msg.InteractionUsersData:
+            print(f"Number of messages: {len(topic_messages_list)}")
+            topic_list = []
+            
+            for user_idx in range(len(topic_messages_list)):
+                sequence_id = topic_messages_list[user_idx]["sequence_id"]
+                users_labels = topic_messages_list[user_idx]["looking_at_camera_list"]
+                users = topic_messages_list[user_idx]["multiple_users_landmarks_list"]
+                for user in users:
+                    user_dict = {}
+                    user_dict["timestamp"] = user["timestamp"]
+                    user_dict["frame_id"] = user["frame_id"]
+                    user_dict["body_id"] = user["body_id"]
+                    user_dict["looking_at_camera"] = users_labels[0]
+                    user_dict["sequence_id"] = sequence_id
+                    
+                    for body_landmark_idx, body_landmark in enumerate(user['body_landmarks']):
+                        # Position
+                        field_name = f'body_joint_{body_joints_list[body_landmark_idx]}_position_x'
+                        user_dict[field_name] = body_landmark["position"][0]
+                        field_name = f'body_joint_{body_joints_list[body_landmark_idx]}_position_y'
+                        user_dict[field_name] = body_landmark["position"][1]
+                        field_name = f'body_joint_{body_joints_list[body_landmark_idx]}_position_z'
+                        user_dict[field_name] = body_landmark["position"][2]
+                        # Orientation
+                        field_name = f'body_joint_{body_joints_list[body_landmark_idx]}_quaternion_x'
+                        user_dict[field_name] = body_landmark["orientation"][0]
+                        field_name = f'body_joint_{body_joints_list[body_landmark_idx]}_quaternion_y'
+                        user_dict[field_name] = body_landmark["orientation"][1]
+                        field_name = f'body_joint_{body_joints_list[body_landmark_idx]}_quaternion_z'
+                        user_dict[field_name] = body_landmark["orientation"][2]
+                        field_name = f'body_joint_{body_joints_list[body_landmark_idx]}_quaternion_w'
+                        user_dict[field_name] = body_landmark["orientation"][3]
+                        
+                    
+                    for face_landmark_idx, face_landmark in enumerate(user['face_landmarks']):
+                        field_name = f'face_landmark_{face_landmark_idx}_image_x'
+                        user_dict[field_name] = face_landmark[0]
+                        field_name = f'face_landmark_{face_landmark_idx}_image_y'
+                        user_dict[field_name] = face_landmark[1]
+                        field_name = f'face_landmark_{face_landmark_idx}_image_z'
+                        user_dict[field_name] = face_landmark[2]
+                    
+                    if labels_to_add is not None:
+                        for label in labels_to_add:
+                            user_dict[label["label_name"]] = label["label_value"]
+                    
+                    topic_list.append(user_dict)    
+            topics_dict[topic] = topic_list
         
-        dataframe = pd.DataFrame.from_dict(dictionary_list)
-        dataframe.to_csv(output_file, index=False, header=True)
-    else:
-        return dictionary_list
+        elif msg_type == users_landmarks_msgs.msg.InteractionSequenceLabel:
+            print(f"Number of messages: {len(topic_messages_list)}")
+            topic_list = []
+            for sequence_idx in range(len(topic_messages_list)):
+                topic_list.append(topic_messages_list[sequence_idx])
+            topics_dict[topic] = topic_list
+        
+    return topics_dict
     
 def export_bags(bags_info_file_path: str,
-                output_file: str = None,
+                output_folder: str = None,
                 topics: Collection[str] = [],
                 exclude: Collection[str] = [],
                 use_header_stamps: bool = True) -> None:
     
-    
+    print("Exporting bags specified in:", bags_info_file_path)
 
     with open(bags_info_file_path) as bags_info_file:
         bags_info_dict = yaml.load(bags_info_file, Loader=yaml.FullLoader)
     
-    bags_dictionary_list = []
+    bags_topics_lists_dict = {}
     
     for bag_info in bags_info_dict["bags_info"]:
         print(f'Extracting bag file: {bag_info["path"]}')
@@ -193,22 +252,30 @@ def export_bags(bags_info_file_path: str,
         labels_to_add_names.remove("path")
 
         labels_to_add = [{"label_name": label_name, "label_value": bag_info[label_name]} for label_name in labels_to_add_names]
-        bags_dictionary_list.extend(export_bag(bag_info["path"], None, False, topics, exclude, use_header_stamps, labels_to_add))
-    
-    if not os.path.isdir(os.path.dirname(output_file)):
-        os.mkdir(os.path.dirname(output_file))
-                            
-    print(f'Exporting specified bag files content to {output_file}')
         
-    dataframe = pd.DataFrame.from_dict(bags_dictionary_list)
-    print(dataframe.info())
-    dataframe.to_csv(output_file, index=False, header=True)                            
+        bag_topics_lists_dict = export_bag(bag_info["path"], topics, exclude, use_header_stamps, labels_to_add)
+        
+        # Check if topics already are in bags_topics_lists_dict
+        for topic_name in bag_topics_lists_dict.keys():
+            if topic_name in bags_topics_lists_dict.keys():
+                bags_topics_lists_dict[topic_name].extend(bag_topics_lists_dict[topic_name])
+            else:
+                bags_topics_lists_dict[topic_name] = bag_topics_lists_dict[topic_name]
+
+    if not os.path.isdir(output_folder):
+        os.mkdir(output_folder)
+
+    for topic_name in bags_topics_lists_dict.keys():
+        output_file = os.path.join(output_folder, f'{topic_name[1:]}.csv')
+        print(f'Exporting specified bag files content to {output_file}')
+        dataframe = pd.DataFrame.from_dict(bags_topics_lists_dict[topic_name])
+        print(dataframe.info())
+        dataframe.to_csv(output_file, index=False, header=True)                            
                 
 def main(args: Any = None) -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument('--bag_file', help='Bag file')
     parser.add_argument('--bags_info_file', help='File containing a list of bag files')
-    parser.add_argument('--output_file', help='Output file name for CSV')
+    parser.add_argument('--dataset_name', help='Name for dataset')
     parser.add_argument('--topics', help='topics', type=str, nargs='+', default="")
     parser.add_argument('--exclude', help='exclude topics', type=str, nargs='+', default="")
     parser.add_argument('--use_header_stamps', help='use stamps from headers', type=bool,
@@ -217,12 +284,10 @@ def main(args: Any = None) -> None:
     parser.add_argument('--video_format', help='video format', type=str, default='mp4')
     arg = parser.parse_args(args)
     
-    if arg.bag_file and arg.bags_info_file:
-        raise ValueError('Cannot specify both bag_file and bags_info_file')
-    if arg.bag_file is None and arg.bags_info_file is None:
-        raise ValueError('Must specify either bag_file or bags_info_file')
+    if arg.bags_info_file is None:
+        raise ValueError('Must specify bags_info_file')
     
-    if arg.bag_file is not None:
-        export_bag(arg.bag_file, arg.output_file, True, arg.topics, arg.exclude, arg.use_header_stamps, None)
-    else:
-        export_bags(arg.bags_info_file, arg.output_file, arg.topics, arg.exclude, arg.use_header_stamps)
+    output_csv_files_folder = os.path.join(os.path.dirname(arg.bags_info_file), "csv_files")
+    
+    if arg.bags_info_file is not None:
+        export_bags(arg.bags_info_file, output_csv_files_folder, arg.topics, arg.exclude, arg.use_header_stamps)

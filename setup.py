@@ -25,6 +25,7 @@ setup(
             'hdf5 = rosbag_utils.export_h5df:main',
             'hdf5_sync = rosbag_utils.export_h5df_sync:main',
             'csv_kinect = rosbag_utils.export_csv_kinect:main',
+            'dataset_descriptor_creator = rosbag_utils.dataset_description_creator:main',
         ],
     },
 )
