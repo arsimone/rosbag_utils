@@ -227,7 +227,12 @@ def export_bag(bag_file: str,
             print(f"Number of messages: {len(topic_messages_list)}")
             topic_list = []
             for sequence_idx in range(len(topic_messages_list)):
-                topic_list.append(topic_messages_list[sequence_idx])
+                msg_dict = topic_messages_list[sequence_idx]
+                if labels_to_add is not None:
+                    for label in labels_to_add:
+                        msg_dict[label["label_name"]] = label["label_value"]
+                topic_list.append(msg_dict)
+                            
             topics_dict[topic] = topic_list
         
     return topics_dict
