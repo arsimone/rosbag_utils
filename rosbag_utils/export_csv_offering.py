@@ -8,11 +8,22 @@ import yaml
 
 import std_msgs.msg
 import classifiers_output_msgs.msg 
+import robomaster_user_reaction_msgs.msg
 
 from .reader import BagReader, header_stamp, sanitize
 
 _readers: Dict[Any, Callable[[Any], np.ndarray]] = {}
 
+def get_pose_data(pose):
+    pose_data = {}
+    pose_data["position"] = np.asarray([pose.position.x,
+                                           pose.position.y,
+                                           pose.position.z], dtype=np.float32)
+    pose_data["orientation"] = np.asarray([pose.orientation.x, 
+                                          pose.orientation.y, 
+                                          pose.orientation.z,
+                                          pose.orientation.w], dtype=np.float32)
+    return pose_data
 
 def reader(t: Any) -> Callable[[Any], Callable[[Any], Optional[np.ndarray]]]:
     def g(f: Callable[[Any], np.ndarray]) -> Callable[[Any], Optional[np.ndarray]]:
@@ -30,19 +41,21 @@ def multi_user_binary_classifier_output(msg: classifiers_output_msgs.msg.MultiUs
     multi_user_binary_classifier_output["timestamp"] = msg.header.stamp.sec + msg.header.stamp.nanosec/1000000000
     multi_user_binary_classifier_output["user_ids"] = [user_id for user_id in msg.user_ids]
     multi_user_binary_classifier_output["probabilities"] = [probability for probability in msg.probabilities]
+    multi_user_binary_classifier_output["users_torso_poses"] = [get_pose_data(pose) for pose in msg.users_torso_poses]
     return multi_user_binary_classifier_output
 
-@reader(classifiers_output_msgs.msg.OfferingDemoOfferEvent)
-def offering_demo_offer_event(msg: classifiers_output_msgs.msg.OfferingDemoOfferEvent) -> Dict:
-    offering_demo_offer_event = {}
-    offering_demo_offer_event["timestamp"] = msg.header.stamp.sec + msg.header.stamp.nanosec/1000000000
-    offering_demo_offer_event["user_id"] = msg.user_id
-    offering_demo_offer_event["probability"] = msg.probability
-    offering_demo_offer_event["distance"] = msg.distance
-    return offering_demo_offer_event
+@reader(robomaster_user_reaction_msgs.msg.OfferingDemoStateEvent)
+def offering_demo_state_event(msg: robomaster_user_reaction_msgs.msg.OfferingDemoStateEvent) -> Dict:
+    offering_demo_state_event = {}
+    offering_demo_state_event["timestamp"] = msg.header.stamp.sec + msg.header.stamp.nanosec/1000000000
+    offering_demo_state_event["event_type"] = msg.event_type
+    offering_demo_state_event["user_id"] = msg.user_id
+    offering_demo_state_event["probability"] = msg.probability
+    offering_demo_state_event["distance"] = msg.distance
+    return offering_demo_state_event
 
-@reader(classifiers_output_msgs.msg.OfferingDemoModeRequest)
-def offering_demo_offer_event(msg: classifiers_output_msgs.msg.OfferingDemoModeRequest) -> Dict:
+@reader(robomaster_user_reaction_msgs.msg.OfferingDemoModeRequest)
+def offering_demo_mode_request(msg: robomaster_user_reaction_msgs.msg.OfferingDemoModeRequest) -> Dict:
     return {"timestamp" : msg.header.stamp.sec + msg.header.stamp.nanosec/1000000000, "requested_mode" : msg.requested_mode}
 
 def import_topic(bag: BagReader, topic: str, 
@@ -106,7 +119,14 @@ def export_bag(bag_file: str,
                 for user_idx in range(len(model_output["user_ids"])):
                     model_output_dict = {f"{topic_prefix}_timestamp": model_output["timestamp"],
                                          f"{topic_prefix}_user_ids": model_output["user_ids"][user_idx],
-                                         f"{topic_prefix}_probabilities": model_output["probabilities"][user_idx]}
+                                         f"{topic_prefix}_probabilities": model_output["probabilities"][user_idx],
+                                         f"{topic_prefix}_torso_pos_x": model_output["users_torso_poses"][user_idx]["position"][0],
+                                         f"{topic_prefix}_torso_pos_y": model_output["users_torso_poses"][user_idx]["position"][1],
+                                         f"{topic_prefix}_torso_pos_z": model_output["users_torso_poses"][user_idx]["position"][2],
+                                         f"{topic_prefix}_torso_quat_x": model_output["users_torso_poses"][user_idx]["orientation"][0],
+                                         f"{topic_prefix}_torso_quat_y": model_output["users_torso_poses"][user_idx]["orientation"][1],
+                                         f"{topic_prefix}_torso_quat_z": model_output["users_torso_poses"][user_idx]["orientation"][2],
+                                         f"{topic_prefix}_torso_quat_w": model_output["users_torso_poses"][user_idx]["orientation"][3]}
                     topic_list.append(model_output_dict)
                 
             topics_dict[topic] = topic_list
@@ -119,17 +139,25 @@ def export_bag(bag_file: str,
                 for user_idx in range(len(model_output["user_ids"])):
                     model_output_dict = {f"{topic_prefix}_timestamp": model_output["timestamp"],
                                          f"{topic_prefix}_user_ids": model_output["user_ids"][user_idx],
-                                         f"{topic_prefix}_probabilities": model_output["probabilities"][user_idx]}
+                                         f"{topic_prefix}_probabilities": model_output["probabilities"][user_idx],
+                                         f"{topic_prefix}_torso_pos_x": model_output["users_torso_poses"][user_idx]["position"][0],
+                                         f"{topic_prefix}_torso_pos_y": model_output["users_torso_poses"][user_idx]["position"][1],
+                                         f"{topic_prefix}_torso_pos_z": model_output["users_torso_poses"][user_idx]["position"][2],
+                                         f"{topic_prefix}_torso_quat_x": model_output["users_torso_poses"][user_idx]["orientation"][0],
+                                         f"{topic_prefix}_torso_quat_y": model_output["users_torso_poses"][user_idx]["orientation"][1],
+                                         f"{topic_prefix}_torso_quat_z": model_output["users_torso_poses"][user_idx]["orientation"][2],
+                                         f"{topic_prefix}_torso_quat_w": model_output["users_torso_poses"][user_idx]["orientation"][3]}
                     topic_list.append(model_output_dict)
                 
             topics_dict[topic] = topic_list
         
-        elif msg_type == classifiers_output_msgs.msg.OfferingDemoOfferEvent and topic == "/rm_user_offering_node/offer_event":
+        elif msg_type == robomaster_user_reaction_msgs.msg.OfferingDemoStateEvent and topic == "/rm_user_offering_node/state_event":
             print(f"Number of messages: {len(topic_messages_list)}")
             topic_list = []
             topic_prefix = "offering_event"
             for offering_event in topic_messages_list:
                 offering_event_dict = {f"{topic_prefix}_timestamp": offering_event["timestamp"],
+                                       f"{topic_prefix}_event_type": offering_event["event_type"],
                                        f"{topic_prefix}_user_id": offering_event["user_id"],
                                        f"{topic_prefix}_probability": offering_event["probability"],
                                        f"{topic_prefix}_distance": offering_event["distance"]}
@@ -137,7 +165,7 @@ def export_bag(bag_file: str,
                 
             topics_dict[topic] = topic_list    
         
-        elif msg_type == classifiers_output_msgs.msg.OfferingDemoModeRequest and topic == "/rm_user_offering_node/requested_mode":
+        elif msg_type == robomaster_user_reaction_msgs.msg.OfferingDemoModeRequest and topic == "/rm_user_offering_node/requested_mode":
             print(f"Number of messages: {len(topic_messages_list)}")
             topic_list = []
             topic_prefix = "mode_request"
