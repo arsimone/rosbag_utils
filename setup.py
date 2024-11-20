@@ -27,6 +27,7 @@ setup(
             'csv_kinect = rosbag_utils.export_csv_kinect:main',
             'csv_offering = rosbag_utils.export_csv_offering:main',
             'dataset_descriptor_creator = rosbag_utils.dataset_description_creator:main',
+            'hdf5_lidar_human_pose_estimation = rosbag_utils.export_hdf5_lidar_human_pose_estimation:main',
         ],
     },
 )
