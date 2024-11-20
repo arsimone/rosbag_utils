@@ -357,6 +357,7 @@ def import_topic(
 def export_bag(
     file: pathlib.Path,
     output_file: str,
+    output_folder: str,
     topics: List[str] = [],
     metadata: List[str] = [],
     use_header_stamps: bool = False,
@@ -366,10 +367,10 @@ def export_bag(
     bag = BagReader(str(file))
     sync = sync_topic is not None
     
-    bag_folder = file.parent
+    output_folder = output_folder if output_folder!="" else file.parent
     
     hdf5_file_name = f"{output_file}.h5" if output_file!="" else f"{file.stem}.h5" 
-    store = h5py.File(os.path.join(bag_folder,hdf5_file_name), "w")
+    store = h5py.File(os.path.join(output_folder,hdf5_file_name), "w")
 
     clean_topics = sanitize_topics(bag, topics, reader)
     clean_metadata = sanitize_topics(bag, metadata, metadata_reader)
@@ -441,7 +442,8 @@ def main(args: Any = None) -> None:
     parser.add_argument('bag_file', 
                         help='Bag file',
                         type=pathlib.Path)
-    parser.add_argument('--output_file', help='Bag file', default="")
+    parser.add_argument('--output_file', help='Output file', default="")
+    parser.add_argument('--output_folder', help='Output folder', default="")
     parser.add_argument('--topics',
                         help='topics',
                         type=str,
@@ -466,6 +468,7 @@ def main(args: Any = None) -> None:
     
     export_bag(file=arg.bag_file,
                output_file=arg.output_file,
+               output_folder=arg.output_folder,
                topics=topics_names,
                metadata=save_metadata_of_topics,
                sync_topic=arg.sync_on_topic,
