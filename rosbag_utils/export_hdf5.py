@@ -1,17 +1,11 @@
 import argparse
 import os
-from typing import Any, Dict, Callable, Optional, Collection
+from typing import Any, Collection
 
-import numpy as np
 import h5py
 
-import nav_msgs.msg
-import geometry_msgs.msg
-import sensor_msgs.msg
-
 try:
-    import robomaster_msgs.msg
-    H264Packet = robomaster_msgs.msg.H264Packet
+    from robomaster_msgs.msg import H264Packet
 except ImportError:
     H264Packet = None
 
@@ -20,44 +14,8 @@ try:
 except:
     Packet = None
 
-from .h264_video import h264_stamps, make_video
+
 from .reader import BagReader, header_stamp, sanitize
-
-
-_readers: Dict[Any, Callable[[Any], np.ndarray]] = {}
-
-
-def reader(t: Any) -> Callable[[Any], Callable[[Any], Optional[np.ndarray]]]:
-    def g(f: Callable[[Any], np.ndarray]) -> Callable[[Any], Optional[np.ndarray]]:
-        setattr(t, 'reader', f)
-        return f
-    return g
-
-
-@reader(nav_msgs.msg.Odometry)
-def odom(msg: nav_msgs.msg.Odometry) -> np.ndarray:
-    ps = msg.pose.pose.position
-    qs = msg.pose.pose.orientation
-    vs = msg.twist.twist.linear
-    ws = msg.twist.twist.angular
-    return np.array([ps.x, ps.y, ps.z, qs.x, qs.y, qs.z, qs.w, vs.x, vs.y, vs.z, ws.x, ws.y, ws.z])
-
-
-@reader(geometry_msgs.msg.PoseStamped)
-def pose(msg: geometry_msgs.msg.PoseStamped) -> np.ndarray:
-    ps = msg.pose.position
-    qs = msg.pose.orientation
-    return np.array([ps.x, ps.y, ps.z, qs.x, qs.y, qs.z, qs.w])
-
-
-@reader(robomaster_msgs.msg.AudioData)
-def audio(msg: robomaster_msgs.msg.AudioData) -> np.ndarray:
-    return np.asarray(msg.data)
-
-
-@reader(sensor_msgs.msg.JointState)
-def joint_state(msg: sensor_msgs.msg.JointState) -> np.ndarray:
-    return np.asarray(msg.position)
 
 
 def import_topic(bag: BagReader, topic: str, msg_type: Any, store: h5py.File,
@@ -96,6 +54,8 @@ def import_topic(bag: BagReader, topic: str, msg_type: Any, store: h5py.File,
 def import_h264_stamps(bag: BagReader, topic: str, topic_type: Any,
                        store: h5py.File, use_header_stamps: bool = True
                        ) -> bool:
+    from .h264_video import h264_stamps
+
     stamps = h264_stamps(bag, topic, use_header_stamps)
     if stamps:
         store.create_dataset(f"{sanitize(topic)}:stamp", data=stamps)
@@ -115,9 +75,14 @@ def export_bag(bag_file: str, topics: Collection[str] = [], exclude: Collection[
         for topic in topics:
             bag.logger.info(f'Will try to import {topic}')
             msg_type = bag.get_message_type(topic)
+            if msg_type is None:
+                continue
             if msg_type in (H264Packet, Packet):
                 t = import_h264_stamps(bag, topic, msg_type, store, use_header_stamps)
                 if should_make_video:
+
+                    from .h264_video import make_video
+
                     out = f'{bag_name}__{sanitize(topic)}.{video_format}'
                     make_video(bag, topic, out)
             else:
