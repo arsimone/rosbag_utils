@@ -1,6 +1,8 @@
+import argparse
 import h5py
 import pathlib
 import numpy as np
+import os
 import scipy.interpolate
 from collections import OrderedDict
 from functools import singledispatch
@@ -15,7 +17,32 @@ import geometry_msgs.msg
 import visualization_msgs.msg
 import azure_kinect_ros_msgs.msg
 
-from .reader import BagReader, header_stamp, sanitize
+from rosbag_utils.reader import BagReader, header_stamp, sanitize
+
+#Topics in bagfile:
+"""
+Topic information: Topic: /tf_static | Type: tf2_msgs/msg/TFMessage | Count: 3
+Topic: /tf | Type: tf2_msgs/msg/TFMessage | Count: 17274
+Topic: /joint_states | Type: sensor_msgs/msg/JointState | Count: 11671
+Topic: /body_tracking_data | Type: azure_kinect_ros_msgs/msg/MarkerArrayStamped | Count: 1751
+Topic: /mobile_base_controller/odom | Type: nav_msgs/msg/Odometry | Count: 5832
+Topic: /scan_raw_back | Type: sensor_msgs/msg/LaserScan | Count: 1190
+Topic: /scan_raw | Type: sensor_msgs/msg/LaserScan 
+"""
+
+# Extraction config
+topics_names=["/tf",
+              "/tf_static",
+              "/joint_states",
+              "/body_tracking_data",
+              "/mobile_base_controller/odom",
+              "/scan_raw",
+              "/scan_raw_back"]
+
+save_metadata_of_topics=["/scan_raw",
+                         "/scan_raw_back"]
+
+sync_dataset_on_topic="/scan_raw_back"
 
 
 frame_to_save_wrt = OrderedDict(
@@ -329,6 +356,7 @@ def import_topic(
 
 def export_bag(
     file: pathlib.Path,
+    output_file: str,
     topics: List[str] = [],
     metadata: List[str] = [],
     use_header_stamps: bool = False,
@@ -337,7 +365,11 @@ def export_bag(
     sync_stamps = None
     bag = BagReader(str(file))
     sync = sync_topic is not None
-    store = h5py.File(f"{file.name}.h5", "w")
+    
+    bag_folder = file.parent
+    
+    hdf5_file_name = f"{output_file}.h5" if output_file!="" else f"{file.stem}.h5" 
+    store = h5py.File(os.path.join(bag_folder,hdf5_file_name), "w")
 
     clean_topics = sanitize_topics(bag, topics, reader)
     clean_metadata = sanitize_topics(bag, metadata, metadata_reader)
@@ -403,3 +435,38 @@ def export_bag(
                     store.create_dataset(f"tf_{t}", data=store["tf"][..., i])
 
     store.close()
+    
+def main(args: Any = None) -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('bag_file', 
+                        help='Bag file',
+                        type=pathlib.Path)
+    parser.add_argument('--output_file', help='Bag file', default="")
+    parser.add_argument('--topics',
+                        help='topics',
+                        type=str,
+                        nargs='+',
+                        default=topics_names)
+    parser.add_argument('--exclude',
+                        help='exclude topics',
+                        type=str,
+                        nargs='+',
+                        default="")
+    parser.add_argument('--use_header_stamps',
+                        help='use stamps from headers',
+                        type=bool,
+                        default=True)
+    parser.add_argument('--sync_on_topic',
+                        help='whether to sync on a given topic',
+                        type=str,
+                        default=sync_dataset_on_topic)
+    
+    # Parse arguments
+    arg = parser.parse_args(args) if args else parser.parse_args()
+    
+    export_bag(file=arg.bag_file,
+               output_file=arg.output_file,
+               topics=topics_names,
+               metadata=save_metadata_of_topics,
+               sync_topic=arg.sync_on_topic,
+               use_header_stamps=arg.use_header_stamps)
