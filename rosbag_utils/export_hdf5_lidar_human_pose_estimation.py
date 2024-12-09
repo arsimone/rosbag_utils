@@ -269,7 +269,7 @@ def _(msg: azure_kinect_ros_msgs.msg.MarkerArrayStamped) -> Optional[np.ndarray]
 ######################
 
 
-def interpolate(target_times: np.ndarray, times: np.ndarray, data: np.ndarray, kind: str = "nearest") -> np.ndarray:
+def interpolate(target_times: np.ndarray, times: np.ndarray, data: np.ndarray, kind: str = "zero") -> np.ndarray:
     f = scipy.interpolate.interp1d(times, data, kind=kind, axis=0, assume_sorted=True, fill_value="extrapolate")
     return f(target_times)
 
