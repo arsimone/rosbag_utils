@@ -28,6 +28,7 @@ Topic: /body_tracking_data | Type: azure_kinect_ros_msgs/msg/MarkerArrayStamped
 Topic: /mobile_base_controller/odom | Type: nav_msgs/msg/Odometry
 Topic: /scan_raw_back | Type: sensor_msgs/msg/LaserScan
 Topic: /scan_raw | Type: sensor_msgs/msg/LaserScan 
+Topic: /dlo_ros/odom | Type: nav_msgs/msg/Odometry
 """
 
 # Extraction config
@@ -39,6 +40,7 @@ topics_names = [
     "/mobile_base_controller/odom",
     "/scan_raw",
     "/scan_raw_back",
+    "/dlo_ros/odom",
 ]
 
 save_metadata_of_topics = ["/scan_raw", "/scan_raw_back"]
