@@ -41,12 +41,23 @@ topics_names = [
     "/scan_raw",
     "/scan_raw_back",
     "/dlo_ros/odom",
+    "/optitrack/base_footprint_optitrack",
+    "/optitrack/person_marker_1",
+    "/optitrack/person_marker_2",
+    "/optitrack/person_marker_3",
 ]
 
 save_metadata_of_topics = ["/scan_raw", "/scan_raw_back"]
 
 sync_dataset_on_topic = "/scan_raw_back"
 
+topics_availability_check = {
+    "/body_tracking_data": {"max_data_gap": 0.25, "fill_value": 0.0},
+    "/optitrack/base_footprint_optitrack": {"max_data_gap": 0.2, "fill_value": 0.0},
+    "/optitrack/person_marker_1": {"max_data_gap": 0.1, "fill_value": 0.0},
+    "/optitrack/person_marker_2": {"max_data_gap": 0.1, "fill_value": 0.0},
+    "/optitrack/person_marker_3": {"max_data_gap": 0.1, "fill_value": 0.0},
+}
 
 frame_to_save_wrt = OrderedDict(
     {
@@ -271,9 +282,40 @@ def _(msg: azure_kinect_ros_msgs.msg.MarkerArrayStamped) -> Optional[np.ndarray]
 ######################
 
 
-def interpolate(target_times: np.ndarray, times: np.ndarray, data: np.ndarray, kind: str = "zero") -> np.ndarray:
+def interpolate(
+    target_times: np.ndarray,
+    times: np.ndarray,
+    data: np.ndarray,
+    kind: str = "zero",
+    max_data_gap_ns: float = None,
+    gap_fill_value: float = np.nan,
+) -> np.ndarray:
+    # Step 1: Interpolate normally
     f = scipy.interpolate.interp1d(times, data, kind=kind, axis=0, assume_sorted=True, fill_value="extrapolate")
-    return f(target_times)
+    interpolated_data = f(target_times)
+
+    if max_data_gap_ns is None:
+        # No need to mask data
+        return interpolated_data
+    else:
+        # Step 2: Identify large gaps
+        gaps = np.diff(times) > max_data_gap_ns  # Find where time gaps are greater than threshold
+        gap_starts = times[:-1][gaps]  # Start times of gaps
+        gap_ends = times[1:][gaps]  # End times of gaps
+
+        # Step 3: Mask interpolated values within the gaps
+        for start, end in zip(gap_starts, gap_ends):
+            mask = (target_times > start) & (target_times < end)
+            interpolated_data[mask] = np.full_like(interpolated_data[mask], gap_fill_value)
+
+        interpolated_data[target_times < times[0]] = np.full_like(
+            interpolated_data[target_times < times[0]], gap_fill_value
+        )  # Before first known time
+        interpolated_data[target_times > times[-1]] = np.full_like(
+            interpolated_data[target_times > times[-1]], gap_fill_value
+        )  # After last known time
+
+        return interpolated_data
 
 
 def sanitize_topics(bag: BagReader, topics: List[str], fn) -> List[str]:
@@ -347,7 +389,16 @@ def import_topic(
         datas = padded_datas
 
     if sync and sync_stamps is not None:
-        datas = interpolate(sync_stamps, np.array(stamps), np.array(datas))
+        if topic in topics_availability_check.keys():
+            datas = interpolate(
+                sync_stamps,
+                np.array(stamps),
+                np.array(datas),
+                max_data_gap_ns=topics_availability_check[topic]["max_data_gap"] * 1e9,
+                gap_fill_value=topics_availability_check[topic]["fill_value"],
+            )
+        else:
+            datas = interpolate(sync_stamps, np.array(stamps), np.array(datas))
 
     result = dict(messages=datas)
 
