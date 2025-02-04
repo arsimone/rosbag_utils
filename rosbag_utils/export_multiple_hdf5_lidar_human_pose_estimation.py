@@ -61,12 +61,15 @@ topics_availability_check = {
 
 frame_to_save_wrt = OrderedDict(
     {
-        "base_laser_link": "base_link",
-        "base_laser_back_link": "base_link",
-        "azure_kinect_depth_camera_link": "base_link",
-        "base_link": "odom",
+        "base_laser_link": ["base_link"],
+        "base_laser_back_link": ["base_link"],
+        "azure_kinect_depth_camera_link": ["base_link"],
+        "base_link": ["map", "odom"],
     }
 )
+
+# Convert to ordered list of tuples
+frame_to_save_wrt_list = [(key, value) for key, values in frame_to_save_wrt.items() for value in values]
 
 
 class ReaderException(Exception):
@@ -266,7 +269,7 @@ def _(msg: tf2_msgs.msg.TFMessage, is_static: bool = False, buffer: tf2_ros.Buff
             buffer.set_transform(tf, "bagfile")
 
     return np.stack(
-        [lookup_transform_from_buffer(frame=f, wrt=wrt, buffer=buffer) for f, wrt in frame_to_save_wrt.items()],
+        [lookup_transform_from_buffer(frame=f, wrt=wrt, buffer=buffer) for f, wrt in frame_to_save_wrt_list],
         axis=-1,
     )
 
@@ -491,8 +494,8 @@ def export_bag(
                 store.create_dataset(f"body_count", data=body_count)
 
             if topic == "/tf":
-                for i, t in enumerate(frame_to_save_wrt.keys()):
-                    store.create_dataset(f"tf_{t}", data=store["tf"][..., i])
+                for i, t in enumerate(frame_to_save_wrt_list):
+                    store.create_dataset(f"tf_{t[0]}_wrt_{t[1]}", data=store["tf"][..., i])
 
     store.close()
 
