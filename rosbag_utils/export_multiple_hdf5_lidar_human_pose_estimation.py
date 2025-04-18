@@ -490,8 +490,8 @@ def export_bag(
 
             if topic == "/body_tracking_data":
                 num_body_markers = 32
-                body_count = (~np.isnan(topic_data["messages"][..., 0])).sum(axis=-1) // num_body_markers
-                store.create_dataset(f"body_count", data=body_count)
+                tracks_number = (~np.isnan(topic_data["messages"][..., 0])).sum(axis=-1) // num_body_markers
+                store.create_dataset(f"tracks_number", data=tracks_number)
 
             if topic == "/tf":
                 for i, t in enumerate(frame_to_save_wrt_list):

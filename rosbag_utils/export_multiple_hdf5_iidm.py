@@ -588,8 +588,8 @@ def export_bags(
             # Determine the output file name based on the current bag file
             output_file_name = bag_file.parent.name
 
-            lhpe_file_name = output_file_name + "_lhpe"
-            iidm_file_name = output_file_name + "_iidm"
+            lhpe_file_name = "lhpe_" + output_file_name
+            iidm_file_name = "iidm_" + output_file_name
 
             # Process the bag to be consumed from lhpe
             export_bag(
