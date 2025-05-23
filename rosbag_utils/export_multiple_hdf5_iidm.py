@@ -28,7 +28,7 @@ Topic: /body_tracking_data | Type: azure_kinect_ros_msgs/msg/MarkerArrayStamped
 Topic: /mobile_base_controller/odom | Type: nav_msgs/msg/Odometry
 Topic: /scan_raw_back | Type: sensor_msgs/msg/LaserScan
 Topic: /scan_raw | Type: sensor_msgs/msg/LaserScan 
-Topic: /dlo_ros/odom | Type: nav_msgs/msg/Odometry
+Topic: /direct_laser_odometry/odom | Type: nav_msgs/msg/Odometry
 """
 
 # Extraction config
@@ -40,7 +40,7 @@ lhpe_topics_names = [
     "/mobile_base_controller/odom",
     "/scan_raw",
     "/scan_raw_back",
-    "/dlo_ros/odom",
+    "/direct_laser_odometry/odom",
     # "/optitrack/base_footprint_optitrack",
     # "/optitrack/person_marker_1",
     # "/optitrack/person_marker_2",
@@ -56,7 +56,7 @@ iidm_topics_names = [
     "/joint_states",
     "/body_tracking_data",
     "/mobile_base_controller/odom",
-    "/dlo_ros/odom",
+    "/direct_laser_odometry/odom",
 ]
 
 iidm_sync_topic_names = "/body_tracking_data"
@@ -75,7 +75,11 @@ frame_to_save_wrt = OrderedDict(
         "base_laser_link": ["base_link"],
         "base_laser_back_link": ["base_link"],
         "azure_kinect_depth_camera_link": ["base_link"],
+        "gripper_grasping_frame": ["base_link"],
+        "base_link": ["base_footprint"],
         "base_link": ["map", "odom"],
+        "base_footprint": ["map", "odom"],
+        "odom": ["map"],
     }
 )
 
